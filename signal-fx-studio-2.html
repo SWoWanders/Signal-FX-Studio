@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SIGNAL — Real-Time Video FX Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0C10;
+    --panel:#14171D;
+    --panel-alt:#191D24;
+    --panel-raise:#1E222A;
+    --border:#262B33;
+    --border-soft:#1D2129;
+    --text:#E7E9EC;
+    --text-dim:#8B92A0;
+    --text-faint:#575E6B;
+    --accent:#FFB020;
+    --accent-dim:#8A5E1E;
+    --signal:#2DD4BF;
+    --danger:#FF4D4D;
+    --font-mono:'JetBrains Mono', ui-monospace, monospace;
+    --font-ui:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--font-ui);overflow:hidden;}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-faint);}
+
+  :focus-visible{outline:2px solid var(--signal);outline-offset:2px;}
+
+  header{
+    display:flex;align-items:center;gap:14px;
+    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);
+    flex-shrink:0;z-index:10;
+  }
+  .brand{display:flex;align-items:center;gap:8px;margin-right:8px;}
+  .brand-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  .brand-name{font-family:var(--font-mono);font-weight:700;letter-spacing:0.12em;font-size:14px;}
+  .brand-sub{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);letter-spacing:0.08em;display:none;}
+  @media(min-width:720px){.brand-sub{display:inline;}}
+
+  .divider-v{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+
+  .src-group{display:flex;gap:6px;}
+  .btn{
+    appearance:none;border:1px solid var(--border);background:var(--panel-alt);color:var(--text);
+    font-family:var(--font-ui);font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:6px;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:border-color .15s,background .15s;
+  }
+  .btn:hover{border-color:var(--text-faint);background:var(--panel-raise);}
+  .btn.active{background:rgba(255,176,32,0.12);border-color:var(--accent);color:var(--accent);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a1206;}
+  .btn.primary:hover{background:#ffc257;}
+  .btn.danger{background:var(--danger);border-color:var(--danger);color:#2a0505;}
+  .btn.ghost{background:transparent;}
+  .btn:disabled{opacity:0.35;cursor:not-allowed;}
+  .btn svg{width:14px;height:14px;flex-shrink:0;}
+
+  header .spacer{flex:1;}
+  #fileInput{display:none;}
+
+  .rec-controls{display:flex;align-items:center;gap:8px;}
+  .rec-timer{font-family:var(--font-mono);font-size:12.5px;color:var(--text-dim);min-width:52px;text-align:right;}
+  .tally{width:8px;height:8px;border-radius:50%;background:var(--text-faint);transition:background .2s;}
+  .tally.live{background:var(--danger);box-shadow:0 0 6px var(--danger);animation:pulse 1.1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+  @media(prefers-reduced-motion:reduce){.tally.live{animation:none;}}
+
+  main{flex:1;display:flex;min-height:0;}
+  .stage-wrap{flex:1;display:flex;flex-direction:column;min-width:0;background:#000;position:relative;}
+  .stage{
+    flex:1;display:flex;align-items:center;justify-content:center;position:relative;
+    background:
+      linear-gradient(var(--border-soft) 1px, transparent 1px) 0 0/24px 24px,
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px) 0 0/24px 24px,
+      #000;
+    overflow:hidden;
+  }
+  #glcanvas{max-width:100%;max-height:100%;object-fit:contain;background:#000;}
+  .placeholder{
+    color:var(--text-faint);font-family:var(--font-mono);font-size:13px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:10px;letter-spacing:0.04em;
+  }
+  .placeholder svg{width:40px;height:40px;opacity:0.4;}
+
+  .corner{position:absolute;width:20px;height:20px;border-color:var(--accent);opacity:0.85;pointer-events:none;}
+  .corner.tl{top:10px;left:10px;border-top:2px solid;border-left:2px solid;}
+  .corner.tr{top:10px;right:10px;border-top:2px solid;border-right:2px solid;}
+  .corner.bl{bottom:10px;left:10px;border-bottom:2px solid;border-left:2px solid;}
+  .corner.br{bottom:10px;right:10px;border-bottom:2px solid;border-right:2px solid;}
+
+  .stage-tag{
+    position:absolute;top:10px;left:36px;font-family:var(--font-mono);font-size:10.5px;
+    color:var(--accent);letter-spacing:0.1em;pointer-events:none;
+  }
+
+  .transport{
+    display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);
+    border-top:1px solid var(--border);flex-shrink:0;
+  }
+  .transport.hidden{display:none;}
+  .seek{flex:1;accent-color:var(--signal);}
+  .time{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);min-width:40px;}
+
+  aside{
+    width:320px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  @media(max-width:840px){aside{width:280px;}}
+  .panel-scroll{flex:1;overflow-y:auto;padding:14px;}
+  .panel-header{
+    display:flex;align-items:center;justify-content:space-between;padding:0 0 10px 0;
+  }
+  .panel-title{font-family:var(--font-mono);font-size:11px;color:var(--text-faint);letter-spacing:0.14em;text-transform:uppercase;}
+  .reset-link{font-family:var(--font-ui);font-size:11.5px;color:var(--text-dim);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+  .reset-link:hover{color:var(--signal);}
+
+  .fx-group-label{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);letter-spacing:0.1em;text-transform:uppercase;margin:14px 0 6px 2px;}
+  .fx-group-label:first-child{margin-top:0;}
+
+  .fx-card{background:var(--panel-alt);border:1px solid var(--border-soft);border-radius:8px;margin-bottom:10px;overflow:hidden;}
+  .fx-head{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;cursor:pointer;user-select:none;}
+  .fx-name{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;}
+  .fx-index{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);}
+  .fx-body{padding:0 12px 12px 12px;display:flex;flex-direction:column;gap:10px;}
+  .fx-body.collapsed{display:none;}
+  .fx-card.off .fx-body{opacity:0.4;pointer-events:none;}
+  .fx-card.on{border-color:var(--accent-dim);}
+
+  .switch{position:relative;width:32px;height:18px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;position:absolute;}
+  .switch .track{position:absolute;inset:0;background:#2A2F38;border-radius:10px;transition:background .15s;}
+  .switch .thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--text-dim);transition:transform .15s,background .15s;}
+  .switch input:checked + .track{background:var(--accent-dim);}
+  .switch input:checked + .track .thumb{transform:translateX(14px);background:var(--accent);}
+  .switch .track .thumb{position:absolute;top:2px;left:2px;}
+
+  .param{display:flex;flex-direction:column;gap:4px;}
+  .param-label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-dim);}
+  .param-label span.val{font-family:var(--font-mono);color:var(--text);}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:3px;background:var(--border);border-radius:2px;outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--signal);cursor:pointer;
+    border:2px solid #0A0C10;margin-top:-5px;
+  }
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--signal);border:2px solid #0A0C10;cursor:pointer;}
+  input[type=range]::-moz-range-track{height:3px;background:var(--border);border-radius:2px;}
+
+  .beat-meter{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:2px;}
+  .beat-meter-fill{height:100%;width:0%;background:var(--signal);transition:width 0.05s linear;}
+
+  footer{
+    display:flex;align-items:center;gap:16px;padding:6px 16px;background:var(--panel);
+    border-top:1px solid var(--border);font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);
+    flex-shrink:0;
+  }
+  footer .stat{display:flex;gap:5px;align-items:center;}
+  footer .stat b{color:var(--text-dim);font-weight:600;}
+  footer .spacer{flex:1;}
+  footer a.dl-link{color:var(--signal);text-decoration:none;font-weight:600;}
+  footer a.dl-link:hover{text-decoration:underline;}
+
+  video{display:none;}
+
+  @media(max-width:720px){
+    main{flex-direction:column;}
+    aside{width:100%;border-left:none;border-top:1px solid var(--border);max-height:42vh;}
+    header{flex-wrap:wrap;row-gap:8px;}
+    .brand{margin-right:4px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-dot" id="tallyBrandDot"></div>
+    <div class="brand-name">SIGNAL</div>
+  </div>
+  <div class="brand-sub">REAL-TIME VIDEO FX</div>
+  <div class="divider-v"></div>
+  <div class="src-group">
+    <button class="btn" id="btnCamera" title="Use camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      Camera
+    </button>
+    <button class="btn" id="btnUpload" title="Upload a video file">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload
+    </button>
+    <input type="file" id="fileInput" accept="video/*">
+  </div>
+  <div class="spacer"></div>
+  <div class="rec-controls">
+    <button class="btn ghost" id="btnSnapshot" title="Save current frame as PNG" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+    <span class="tally" id="tally"></span>
+    <span class="rec-timer" id="recTimer">00:00</span>
+    <button class="btn primary" id="btnRecord" disabled>Record</button>
+  </div>
+</header>
+
+<main>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="glcanvas"></canvas>
+      <div class="placeholder" id="placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        <div>NO SIGNAL<br><span style="color:var(--text-faint);font-size:11px;">Connect a camera or upload a video to begin</span></div>
+      </div>
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="stage-tag" id="stageTag" style="display:none;">MONITOR</div>
+    </div>
+    <div class="transport hidden" id="transport">
+      <button class="btn ghost" id="btnPlay" style="padding:6px 9px;">
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+      <span class="time" id="curTime">0:00</span>
+      <input type="range" class="seek" id="seek" min="0" max="100" value="0" step="0.1">
+      <span class="time" id="durTime">0:00</span>
+      <button class="btn ghost" id="btnLoop" title="Loop playback" style="padding:6px 9px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <aside>
+    <div class="panel-scroll">
+      <div class="panel-header">
+        <div class="panel-title">Effect Chain</div>
+        <button class="reset-link" id="resetFx">Reset all</button>
+      </div>
+      <div id="fxList"></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <div class="stat">SRC <b id="statSrc">—</b></div>
+  <div class="stat">RES <b id="statRes">—</b></div>
+  <div class="stat">FPS <b id="statFps">—</b></div>
+  <div class="spacer"></div>
+  <div id="dlSlot"></div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     Config: effect chain definition (drives UI + uniforms)
+     Grouped as they appear in the panel.
+  ========================================================= */
+  const FX = [
+    { key:'bloom', label:'Bloom', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'bloomThreshold', label:'Threshold', min:0, max:1, step:0.01, val:0.62},
+        {id:'bloomIntensity', label:'Intensity', min:0, max:2, step:0.01, val:0.85},
+      ]},
+    { key:'ca', label:'Chromatic Aberration', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'caAmount', label:'Amount', min:0, max:1, step:0.01, val:0.4},
+      ]},
+    { key:'glitch', label:'Glitch', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'glitchAmount', label:'Intensity', min:0, max:1, step:0.01, val:0.45},
+      ]},
+    { key:'persist', label:'Pixel Persistence', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'persistAmount', label:'Trail Decay', min:0, max:0.97, step:0.01, val:0.78},
+      ]},
+    { key:'fluid', label:'Fluid Mosh', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'fluidAmount', label:'Displacement', min:0, max:1, step:0.01, val:0.4},
+        {id:'fluidSpeed', label:'Flow Speed', min:0, max:2, step:0.01, val:0.5},
+      ]},
+    { key:'mosh', label:'True Datamosh', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'moshAmount', label:'Corruption Amount', min:0, max:1, step:0.01, val:0.45},
+        {id:'moshDrag', label:'Drag Distance', min:0, max:1, step:0.01, val:0.4},
+      ]},
+    { key:'droste', label:'Infinite Feedback Zoom', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'drosteZoom', label:'Zoom Rate', min:0.85, max:1.05, step:0.001, val:0.985},
+        {id:'drosteRotate', label:'Rotation Speed', min:-1, max:1, step:0.01, val:0.15},
+        {id:'drosteMix', label:'Mix', min:0, max:1, step:0.01, val:0.5},
+      ]},
+    { key:'slit', label:'Slit-Scan Drift', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'slitAmount', label:'Drift Amount', min:0, max:1, step:0.01, val:0.4},
+        {id:'slitMix', label:'Mix', min:0, max:1, step:0.01, val:0.4},
+      ]},
+    { key:'kaleido', label:'Kaleidoscope Mirror', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'kaleidoSegments', label:'Segments', min:2, max:16, step:1, val:6},
+        {id:'kaleidoRotate', label:'Rotation Speed', min:-1, max:1, step:0.01, val:0.2},
+      ]},
+    { key:'comet', label:'Comet Trailing', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'cometThreshold', label:'Luminance Threshold', min:0, max:1, step:0.01, val:0.58},
+        {id:'cometDecay', label:'Trail Decay', min:0.7, max:0.99, step:0.005, val:0.92},
+        {id:'cometSpread', label:'Glow Spread', min:0, max:3, step:0.05, val:1.4},
+        {id:'cometHue', label:'Hue Cycle Speed', min:0, max:1, step:0.01, val:0.18},
+      ]},
+    { key:'burnin', label:'Tube Camera Burn-In', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'burnThreshold', label:'Hotspot Threshold', min:0, max:1, step:0.01, val:0.78},
+        {id:'burnDecay', label:'Persistence', min:0.7, max:0.995, step:0.005, val:0.95},
+        {id:'burnSpread', label:'Glow Spread', min:0, max:3, step:0.05, val:0.9},
+      ]},
+    { key:'mosaic', label:'Mosaic / Pixelation', group:'Rendering & Frame Buffering', on:false, params:[
+        {id:'mosaicBlock', label:'Block Size (px)', min:2, max:80, step:1, val:16},
+      ]},
+    { key:'edge', label:'Rotoscope Edge / Line Art', group:'Painterly', on:false, params:[
+        {id:'edgeThreshold', label:'Edge Threshold', min:0.05, max:1, step:0.01, val:0.35},
+        {id:'edgeIntensity', label:'Line Intensity', min:0, max:1, step:0.01, val:0.85},
+      ]},
+    { key:'hatch', label:'Cross-Hatch Engraving', group:'Painterly', on:false, params:[
+        {id:'hatchDensity', label:'Line Density', min:0.2, max:3, step:0.05, val:1.1},
+        {id:'hatchContrast', label:'Contrast', min:0, max:1, step:0.01, val:0.8},
+      ]},
+    { key:'dither', label:'1-Bit Dither', group:'Painterly', on:false, params:[
+        {id:'ditherBias', label:'Bias', min:-0.3, max:0.3, step:0.01, val:0},
+      ]},
+    { key:'posterize', label:'Posterize / Solarize', group:'Color', on:false, params:[
+        {id:'posterizeLevels', label:'Levels', min:2, max:32, step:1, val:6},
+        {id:'solarizeAmount', label:'Solarize Mix', min:0, max:1, step:0.01, val:0.3},
+      ]},
+    { key:'retro', label:'Retro / VHS', group:'Color', on:false, params:[
+        {id:'scanlineAmount', label:'Scanlines', min:0, max:1, step:0.01, val:0.4},
+        {id:'noiseAmount', label:'Noise', min:0, max:1, step:0.01, val:0.28},
+        {id:'bleedAmount', label:'Color Bleed', min:0, max:1, step:0.01, val:0.3},
+      ]},
+    { key:'film', label:'Film Grain & Gate Weave', group:'Color', on:false, params:[
+        {id:'grainAmount', label:'Grain Amount', min:0, max:1, step:0.01, val:0.35},
+        {id:'weaveAmount', label:'Weave Amount', min:0, max:1, step:0.01, val:0.3},
+      ]},
+    { key:'leak', label:'Light Leaks / Film Burn', group:'Color', on:false, params:[
+        {id:'leakIntensity', label:'Intensity', min:0, max:1, step:0.01, val:0.5},
+        {id:'leakSpeed', label:'Drift Speed', min:0, max:2, step:0.01, val:0.4},
+      ]},
+    { key:'dust', label:'Dust & Scratches', group:'Color', on:false, params:[
+        {id:'dustDensity', label:'Scratch Density', min:0, max:1, step:0.01, val:0.4},
+        {id:'dustFlicker', label:'Flicker', min:0, max:1, step:0.01, val:0.3},
+      ]},
+    { key:'strobe', label:'Video Strobe / Step-Framing', group:'Temporal', on:false, params:[
+        {id:'strobeFps', label:'Frame Rate (fps)', min:2, max:24, step:1, val:6},
+      ]},
+    { key:'beat', label:'Beat-Reactive Pulse', group:'Audio Reactive', on:false, params:[
+        {id:'beatSensitivity', label:'Sensitivity', min:0, max:2, step:0.01, val:1},
+      ], extra:'meter'},
+  ];
+  const state = { glitchSeed: 0, moshSeed: 0 };
+  FX.forEach(fx => { fx.params.forEach(p => state[p.id] = p.val); });
+  const fxByKey = {};
+  FX.forEach(fx => { fxByKey[fx.key] = fx; });
+
+  /* =========================================================
+     Build effect panel UI (grouped)
+  ========================================================= */
+  const fxList = document.getElementById('fxList');
+  let lastGroup = null;
+  let counter = 0;
+  FX.forEach(fx => {
+    if (fx.group !== lastGroup){
+      const label = document.createElement('div');
+      label.className = 'fx-group-label';
+      label.textContent = fx.group;
+      fxList.appendChild(label);
+      lastGroup = fx.group;
+    }
+    counter++;
+    const card = document.createElement('div');
+    card.className = 'fx-card off';
+    card.id = 'card-' + fx.key;
+
+    const head = document.createElement('div');
+    head.className = 'fx-head';
+    head.innerHTML = `
+      <div class="fx-name"><span class="fx-index">${String(counter).padStart(2,'0')}</span>${fx.label}</div>
+      <label class="switch" onclick="event.stopPropagation()">
+        <input type="checkbox" id="toggle-${fx.key}">
+        <div class="track"><div class="thumb"></div></div>
+      </label>`;
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'fx-body collapsed';
+    fx.params.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'param';
+      const decimals = p.step < 1 ? 2 : 0;
+      row.innerHTML = `
+        <div class="param-label"><span>${p.label}</span><span class="val" id="val-${p.id}">${p.val.toFixed(decimals)}</span></div>
+        <input type="range" id="slider-${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.val}">`;
+      body.appendChild(row);
+    });
+    if (fx.extra === 'meter'){
+      const meterRow = document.createElement('div');
+      meterRow.className = 'param';
+      meterRow.innerHTML = `
+        <div class="param-label"><span>Live Bass Level</span></div>
+        <div class="beat-meter"><div class="beat-meter-fill" id="beatMeterFill"></div></div>`;
+      body.appendChild(meterRow);
+    }
+    card.appendChild(body);
+    fxList.appendChild(card);
+
+    head.addEventListener('click', () => body.classList.toggle('collapsed'));
+    const toggle = head.querySelector('#toggle-' + fx.key);
+    toggle.addEventListener('click', e => e.stopPropagation());
+    toggle.addEventListener('change', () => {
+      fx.on = toggle.checked;
+      card.classList.toggle('on', fx.on);
+      card.classList.toggle('off', !fx.on);
+      if (fx.on) body.classList.remove('collapsed');
+      if (fx.key === 'beat' && fx.on) wireAudioForCurrentSource();
+    });
+
+    fx.params.forEach(p => {
+      const slider = document.getElementById('slider-' + p.id);
+      const valEl = document.getElementById('val-' + p.id);
+      const decimals = p.step < 1 ? 2 : 0;
+      slider.addEventListener('input', () => {
+        state[p.id] = parseFloat(slider.value);
+        valEl.textContent = state[p.id].toFixed(decimals);
+      });
+    });
+  });
+
+  document.getElementById('resetFx').addEventListener('click', () => {
+    FX.forEach(fx => {
+      fx.on = false;
+      document.getElementById('toggle-' + fx.key).checked = false;
+      document.getElementById('card-' + fx.key).classList.remove('on');
+      document.getElementById('card-' + fx.key).classList.add('off');
+      fx.params.forEach(p => {
+        state[p.id] = p.val;
+        const decimals = p.step < 1 ? 2 : 0;
+        document.getElementById('slider-' + p.id).value = p.val;
+        document.getElementById('val-' + p.id).textContent = p.val.toFixed(decimals);
+      });
+    });
+  });
+
+  setInterval(() => { state.glitchSeed = Math.random() * 1000; }, 90);
+  setInterval(() => { state.moshSeed = Math.random() * 1000; }, 220);
+
+  /* =========================================================
+     Video source handling
+  ========================================================= */
+  const video = document.getElementById('video');
+  const stage = document.getElementById('stage');
+  const placeholder = document.getElementById('placeholder');
+  const stageTag = document.getElementById('stageTag');
+  const canvas = document.getElementById('glcanvas');
+  const transport = document.getElementById('transport');
+  const btnCamera = document.getElementById('btnCamera');
+  const btnUpload = document.getElementById('btnUpload');
+  const fileInput = document.getElementById('fileInput');
+  const btnRecord = document.getElementById('btnRecord');
+  const btnSnapshot = document.getElementById('btnSnapshot');
+  const statSrc = document.getElementById('statSrc');
+  const statRes = document.getElementById('statRes');
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    btnCamera.style.display = 'none';
+  }
+
+  let camStream = null;
+  let sourceType = null; // 'camera' | 'file'
+  let ready = false;
+
+  function fmtTime(s){
+    if (!isFinite(s)) return '0:00';
+    const m = Math.floor(s/60), sec = Math.floor(s%60);
+    return m + ':' + String(sec).padStart(2,'0');
+  }
+
+  async function useCamera(){
+    try{
+      stopAll();
+      camStream = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1280}, height:{ideal:720} }, audio:true });
+      video.srcObject = camStream;
+      video.muted = true;
+      await video.play();
+      sourceType = 'camera';
+      onSourceReady();
+      transport.classList.add('hidden');
+      btnCamera.classList.add('active');
+      btnUpload.classList.remove('active');
+      statSrc.textContent = 'CAMERA';
+    }catch(err){
+      alert('Could not access camera: ' + err.message);
+    }
+  }
+
+  function useFile(file){
+    stopAll();
+    const url = URL.createObjectURL(file);
+    video.srcObject = null;
+    video.src = url;
+    video.muted = false;
+    video.loop = true;
+    video.play();
+    sourceType = 'file';
+    statSrc.textContent = 'FILE';
+    btnUpload.classList.add('active');
+    btnCamera.classList.remove('active');
+    video.addEventListener('loadedmetadata', () => {
+      onSourceReady();
+      transport.classList.remove('hidden');
+      document.getElementById('durTime').textContent = fmtTime(video.duration);
+      document.getElementById('seek').max = video.duration || 100;
+    }, { once:true });
+  }
+
+  function stopAll(){
+    if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+    if (video.src) { URL.revokeObjectURL(video.src); video.removeAttribute('src'); }
+    video.srcObject = null;
+    ready = false;
+  }
+
+  function onSourceReady(){
+    ready = true;
+    placeholder.style.display = 'none';
+    stageTag.style.display = 'block';
+    btnRecord.disabled = false;
+    btnSnapshot.disabled = false;
+    initGLSizing();
+    if (fxByKey.beat.on) wireAudioForCurrentSource();
+  }
+
+  btnCamera.addEventListener('click', useCamera);
+  btnUpload.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) useFile(e.target.files[0]); });
+
+  const btnPlay = document.getElementById('btnPlay');
+  const playIcon = document.getElementById('playIcon');
+  const btnLoop = document.getElementById('btnLoop');
+  const seek = document.getElementById('seek');
+  btnPlay.addEventListener('click', () => {
+    if (video.paused) { video.play(); playIcon.innerHTML = '<rect x="5" y="3" width="5" height="18"/><rect x="14" y="3" width="5" height="18"/>'; }
+    else { video.pause(); playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>'; }
+  });
+  btnLoop.addEventListener('click', () => { video.loop = !video.loop; btnLoop.classList.toggle('active', video.loop); });
+  video.addEventListener('timeupdate', () => {
+    if (sourceType !== 'file') return;
+    document.getElementById('curTime').textContent = fmtTime(video.currentTime);
+    if (!seek.matches(':active')) seek.value = video.currentTime;
+  });
+  seek.addEventListener('input', () => { video.currentTime = parseFloat(seek.value); });
+
+  /* =========================================================
+     Web Audio: beat-reactive pulse
+  ========================================================= */
+  let audioCtx = null, analyser = null, freqData = null;
+  let fileAudioNode = null, camAudioNode = null;
+  let beatPulse = 0;
+  const beatMeterFill = document.getElementById('beatMeterFill');
+
+  function ensureAudioCtx(){
+    if (!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.5;
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function wireAudioForCurrentSource(){
+    if (!ready) return;
+    ensureAudioCtx();
+    try{
+      if (sourceType === 'file'){
+        if (!fileAudioNode){
+          fileAudioNode = audioCtx.createMediaElementSource(video);
+          fileAudioNode.connect(audioCtx.destination);
+        }
+        fileAudioNode.connect(analyser);
+      } else if (sourceType === 'camera' && camStream){
+        const audioTracks = camStream.getAudioTracks();
+        if (audioTracks.length){
+          camAudioNode = audioCtx.createMediaStreamSource(camStream);
+          camAudioNode.connect(analyser);
+        }
+      }
+    }catch(e){ console.warn('Audio-reactive setup failed:', e.message); }
+  }
+
+  /* =========================================================
+     WebGL pipeline
+  ========================================================= */
+  const gl = canvas.getContext('webgl2', { preserveDrawingBuffer:true });
+  if (!gl) { alert('WebGL2 is not supported in this browser.'); }
+  // Video frames upload top-row-first, but WebGL texture space treats v=0 as the
+  // bottom — without this every source renders upside down.
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+  function compile(type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+      console.error(gl.getShaderInfoLog(sh));
+      throw new Error('Shader compile failed: ' + gl.getShaderInfoLog(sh));
+    }
+    return sh;
+  }
+  function link(vsSrc, fsSrc){
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+      console.error(gl.getProgramInfoLog(prog));
+      throw new Error('Program link failed');
+    }
+    return prog;
+  }
+
+  const VS = `#version 300 es
+  in vec2 a_pos;
+  out vec2 v_uv;
+  void main(){
+    v_uv = a_pos * 0.5 + 0.5;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+  }`;
+
+  // Pass 1: per-pixel stylization chain (geometry first, color grading last)
+  const FS_PASS1 = `#version 300 es
+  precision highp float;
+  in vec2 v_uv;
+  uniform sampler2D u_tex;
+  uniform float u_time;
+  uniform vec2 u_resolution;
+  uniform bool u_filmOn; uniform float u_grainAmount; uniform float u_weaveAmount;
+  uniform bool u_kaleidoOn; uniform float u_kaleidoSegments; uniform float u_kaleidoRotate;
+  uniform bool u_mosaicOn; uniform float u_mosaicBlock;
+  uniform bool u_caOn; uniform float u_caAmount;
+  uniform bool u_glitchOn; uniform float u_glitchAmount; uniform float u_glitchSeed;
+  uniform bool u_retroOn; uniform float u_scanlineAmount; uniform float u_noiseAmount; uniform float u_bleedAmount;
+  uniform bool u_dustOn; uniform float u_dustDensity; uniform float u_dustFlicker;
+  uniform bool u_leakOn; uniform float u_leakIntensity; uniform float u_leakSpeed;
+  uniform bool u_edgeOn; uniform float u_edgeThreshold; uniform float u_edgeIntensity;
+  uniform bool u_hatchOn; uniform float u_hatchDensity; uniform float u_hatchContrast;
+  uniform bool u_posterizeOn; uniform float u_posterizeLevels; uniform float u_solarizeAmount;
+  uniform bool u_ditherOn; uniform float u_ditherBias;
+  out vec4 outColor;
+
+  float hash11(float p){ p = fract(p*0.1031); p*=p+33.33; p*=p+p; return fract(p); }
+  float hash21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*0.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
+  float noise2(vec2 p){
+    vec2 i=floor(p); vec2 f=fract(p);
+    float a=hash21(i), b=hash21(i+vec2(1.0,0.0)), c=hash21(i+vec2(0.0,1.0)), d=hash21(i+vec2(1.0,1.0));
+    vec2 u=f*f*(3.0-2.0*f);
+    return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+  }
+  float luma(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
+
+  vec2 kaleido(vec2 uv, float segments, float rotate){
+    vec2 p = uv - 0.5;
+    float angle = atan(p.y, p.x) + rotate;
+    float radius = length(p);
+    float seg = 6.2831853 / max(segments, 2.0);
+    angle = mod(angle, seg);
+    angle = abs(angle - seg*0.5);
+    return vec2(cos(angle), sin(angle)) * radius + 0.5;
+  }
+
+  void main(){
+    vec2 uv = v_uv;
+
+    if (u_filmOn){
+      vec2 weaveOffset = vec2(
+        hash11(floor(u_time*6.0)) - 0.5,
+        hash11(floor(u_time*6.0) + 50.0) - 0.5
+      ) * u_weaveAmount * 0.012;
+      uv += weaveOffset;
+    }
+
+    if (u_kaleidoOn){
+      uv = kaleido(uv, u_kaleidoSegments, u_time * u_kaleidoRotate);
+    }
+    uv = clamp(uv, 0.001, 0.999);
+
+    vec2 baseuv = uv;
+    if (u_mosaicOn){
+      vec2 blocks = u_resolution / max(u_mosaicBlock, 1.0);
+      baseuv = (floor(uv * blocks) + 0.5) / blocks;
+    }
+
+    vec2 guv = baseuv;
+    if (u_glitchOn){
+      float block = floor(uv.y * 40.0);
+      float n = hash11(block + u_glitchSeed);
+      float trigger = step(0.8, hash11(block*3.17 + u_glitchSeed*7.0));
+      float shift = (n - 0.5) * u_glitchAmount * 0.18 * trigger;
+      guv.x += shift;
+    }
+    guv = clamp(guv, 0.001, 0.999);
+
+    vec3 col;
+    if (u_caOn){
+      float amt = u_caAmount * 0.018;
+      float r = texture(u_tex, clamp(guv + vec2(amt,0.0), 0.0, 1.0)).r;
+      float g = texture(u_tex, guv).g;
+      float b = texture(u_tex, clamp(guv - vec2(amt,0.0), 0.0, 1.0)).b;
+      col = vec3(r,g,b);
+    } else {
+      col = texture(u_tex, guv).rgb;
+    }
+
+    if (u_glitchOn){
+      float block2 = floor(uv.y * 40.0);
+      float sw = step(0.94, hash11(block2*5.71 + u_glitchSeed*3.3));
+      if (sw > 0.5) col = col.gbr;
+    }
+
+    if (u_retroOn){
+      float scan = sin(uv.y * u_resolution.y * 1.25) * 0.5 + 0.5;
+      col *= mix(1.0, 0.65 + 0.35*scan, u_scanlineAmount);
+      float grain = hash21(uv * u_resolution.xy + u_time * 60.0) - 0.5;
+      col += grain * u_noiseAmount * 0.25;
+      float bleed = u_bleedAmount * 0.008;
+      float rb = texture(u_tex, clamp(guv + vec2(bleed,0.0),0.0,1.0)).r;
+      float bb = texture(u_tex, clamp(guv - vec2(bleed,0.0),0.0,1.0)).b;
+      col.r = mix(col.r, rb, 0.55);
+      col.b = mix(col.b, bb, 0.55);
+    }
+
+    if (u_filmOn){
+      float g2 = hash21(uv * u_resolution.xy * 1.7 + u_time * 90.0) - 0.5;
+      col += g2 * u_grainAmount * 0.3;
+    }
+
+    if (u_dustOn){
+      float colIndex = floor(guv.x * 220.0);
+      float scratchTrigger = step(0.985, hash11(colIndex*13.7 + floor(u_time*3.0)));
+      float scratchBright = hash11(colIndex*7.3 + 1.0) * 0.5 + 0.5;
+      col += vec3(scratchBright) * scratchTrigger * u_dustDensity;
+      float speck = step(0.9985, hash21(guv*u_resolution.xy + floor(u_time*24.0)));
+      col += vec3(speck) * u_dustDensity;
+      float flicker = 1.0 - u_dustFlicker*0.15*hash11(floor(u_time*24.0));
+      col *= flicker;
+    }
+
+    if (u_leakOn){
+      vec2 leakUV = guv*1.3 + vec2(u_time*0.05*u_leakSpeed, u_time*0.03*u_leakSpeed);
+      float n = noise2(leakUV*2.0);
+      float mask = smoothstep(0.55, 0.9, n);
+      vec3 leakColor = mix(vec3(1.0,0.5,0.15), vec3(1.0,0.15,0.4), noise2(leakUV*0.7+10.0));
+      col += leakColor * mask * u_leakIntensity * 0.8;
+    }
+
+    if (u_edgeOn){
+      vec2 texel = 1.0/u_resolution;
+      float tl=luma(texture(u_tex, guv+vec2(-texel.x, texel.y)).rgb);
+      float tc=luma(texture(u_tex, guv+vec2(0.0, texel.y)).rgb);
+      float tr=luma(texture(u_tex, guv+vec2(texel.x, texel.y)).rgb);
+      float l =luma(texture(u_tex, guv+vec2(-texel.x, 0.0)).rgb);
+      float r =luma(texture(u_tex, guv+vec2(texel.x, 0.0)).rgb);
+      float bl=luma(texture(u_tex, guv+vec2(-texel.x,-texel.y)).rgb);
+      float bc=luma(texture(u_tex, guv+vec2(0.0,-texel.y)).rgb);
+      float br=luma(texture(u_tex, guv+vec2(texel.x,-texel.y)).rgb);
+      float gx = -tl - 2.0*l - bl + tr + 2.0*r + br;
+      float gy = -tl - 2.0*tc - tr + bl + 2.0*bc + br;
+      float edge = sqrt(gx*gx + gy*gy);
+      edge = smoothstep(u_edgeThreshold, u_edgeThreshold+0.15, edge);
+      col = mix(col, vec3(0.02), edge * u_edgeIntensity);
+    }
+
+    if (u_hatchOn){
+      float l = luma(col);
+      float lA = sin((guv.x+guv.y) * u_hatchDensity * 100.0);
+      float lB = sin((guv.x-guv.y) * u_hatchDensity * 100.0);
+      float lC = sin((guv.x + guv.y*0.4) * u_hatchDensity * 140.0);
+      float hatch = 1.0;
+      if (l < 0.82) hatch = min(hatch, smoothstep(-0.2, 0.2, lA));
+      if (l < 0.5)  hatch = min(hatch, smoothstep(-0.2, 0.2, lB));
+      if (l < 0.22) hatch = min(hatch, smoothstep(-0.2, 0.2, lC));
+      vec3 hatchColor = mix(vec3(0.04), vec3(0.96), hatch);
+      col = mix(col, hatchColor, u_hatchContrast);
+    }
+
+    if (u_posterizeOn){
+      vec3 levels = vec3(max(u_posterizeLevels, 2.0));
+      vec3 posterized = floor(col * levels) / (levels - 1.0);
+      col = clamp(posterized, 0.0, 1.0);
+      vec3 solarized = mix(col, 1.0 - col, step(0.5, col));
+      col = mix(col, solarized, u_solarizeAmount);
+    }
+
+    if (u_ditherOn){
+      float bayer[16] = float[16](0.0,8.0,2.0,10.0, 12.0,4.0,14.0,6.0, 3.0,11.0,1.0,9.0, 15.0,7.0,13.0,5.0);
+      int xi = int(mod(gl_FragCoord.x, 4.0));
+      int yi = int(mod(gl_FragCoord.y, 4.0));
+      float threshold = (bayer[yi*4+xi] + 0.5) / 16.0;
+      float l = luma(col);
+      float bw = step(threshold, l + u_ditherBias);
+      col = vec3(bw);
+    }
+
+    outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+  }`;
+
+  // Pass 2: feedback effects — persistence, fluid mosh, datamosh, droste zoom, slit-scan
+  const FS_PASS2 = `#version 300 es
+  precision highp float;
+  in vec2 v_uv;
+  uniform sampler2D u_scene;
+  uniform sampler2D u_prev;
+  uniform float u_time;
+  uniform bool u_fluidOn; uniform float u_fluidAmount; uniform float u_fluidSpeed;
+  uniform bool u_persistOn; uniform float u_persistAmount;
+  uniform bool u_moshOn; uniform float u_moshAmount; uniform float u_moshDrag; uniform float u_moshSeed;
+  uniform bool u_drosteOn; uniform float u_drosteZoom; uniform float u_drosteRotate; uniform float u_drosteMix;
+  uniform bool u_slitOn; uniform float u_slitAmount; uniform float u_slitMix;
+  out vec4 outColor;
+
+  float hash21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*0.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
+  float noise(vec2 p){
+    vec2 i=floor(p); vec2 f=fract(p);
+    float a=hash21(i), b=hash21(i+vec2(1.0,0.0)), c=hash21(i+vec2(0.0,1.0)), d=hash21(i+vec2(1.0,1.0));
+    vec2 u=f*f*(3.0-2.0*f);
+    return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+  }
+
+  void main(){
+    vec3 sceneColor = texture(u_scene, v_uv).rgb;
+    vec3 result = sceneColor;
+
+    // True Datamosh: blocks randomly fail to update and instead drag stale,
+    // motion-shifted content forward from the accumulated previous frame —
+    // approximating corrupted P-frame motion compensation.
+    if (u_moshOn){
+      vec2 block = floor(v_uv * 14.0);
+      float r = hash21(block + u_moshSeed);
+      float corrupt = step(1.0 - u_moshAmount*0.85, r);
+      if (corrupt > 0.5){
+        vec2 dir = vec2(hash21(block+u_moshSeed+11.0), hash21(block+u_moshSeed+22.0)) * 2.0 - 1.0;
+        vec2 duv = clamp(v_uv + dir * u_moshDrag * 0.05, 0.0, 1.0);
+        result = texture(u_prev, duv).rgb;
+      }
+    }
+
+    if (u_fluidOn){
+      float t = u_time * u_fluidSpeed;
+      vec2 flow = vec2(
+        noise(v_uv*4.0 + vec2(t,0.0)),
+        noise(v_uv*4.0 + vec2(0.0,t) + 50.0)
+      ) * 2.0 - 1.0;
+      vec2 duv = clamp(v_uv + flow * u_fluidAmount * 0.06, 0.0, 1.0);
+      vec3 prevColor = texture(u_prev, duv).rgb;
+      result = mix(result, prevColor, 0.5);
+    }
+
+    // Slit-Scan Drift: approximates classic slit-scan by pulling each column's
+    // sample from a vertically time-lagged position in the feedback buffer.
+    if (u_slitOn){
+      float lag = v_uv.x * u_slitAmount;
+      vec2 suv = clamp(v_uv + vec2(0.0, lag*0.06 - u_slitAmount*0.03), 0.0, 1.0);
+      vec3 slit = texture(u_prev, suv).rgb;
+      result = mix(result, slit, u_slitMix);
+    }
+
+    if (u_persistOn){
+      vec3 prevColor2 = texture(u_prev, v_uv).rgb;
+      result = max(result, prevColor2 * u_persistAmount);
+    }
+
+    // Infinite Feedback Zoom (Droste): recursively zoom/rotate the previous
+    // composite (which already contains earlier zooms) back into itself.
+    if (u_drosteOn){
+      vec2 center = vec2(0.5);
+      float ang = u_time * u_drosteRotate;
+      float ca = cos(ang), sa = sin(ang);
+      mat2 rot = mat2(ca, -sa, sa, ca);
+      vec2 p = (v_uv - center) * rot * u_drosteZoom;
+      vec2 zuv = clamp(p + center, 0.0, 1.0);
+      vec3 prevZoomed = texture(u_prev, zuv).rgb;
+      result = mix(result, prevZoomed, u_drosteMix);
+    }
+
+    outColor = vec4(clamp(result, 0.0, 1.0), 1.0);
+  }`;
+
+  // Generic bright-trail feedback pass, reused for Comet Trailing and Tube Burn-In
+  const FS_TRAIL = `#version 300 es
+  precision highp float;
+  in vec2 v_uv;
+  uniform sampler2D u_scene;
+  uniform sampler2D u_prev;
+  uniform vec2 u_texel;
+  uniform float u_time;
+  uniform float u_threshold;
+  uniform float u_decay;
+  uniform float u_spread;
+  uniform float u_hueSpeed;
+  uniform vec3 u_tint;
+  out vec4 outColor;
+
+  vec3 hueRotate(vec3 col, float t){
+    float angle = t * 6.2831853;
+    float s = sin(angle), c = cos(angle);
+    mat3 rot = mat3(
+      0.299+0.701*c+0.168*s, 0.587-0.587*c+0.330*s, 0.114-0.114*c-0.497*s,
+      0.299-0.299*c-0.328*s, 0.587+0.413*c+0.035*s, 0.114-0.114*c+0.292*s,
+      0.299-0.300*c+1.25*s,  0.587-0.588*c-1.05*s,  0.114+0.886*c-0.203*s
+    );
+    return clamp(rot * col, 0.0, 1.0);
+  }
+
+  void main(){
+    vec3 scene = texture(u_scene, v_uv).rgb;
+    float lum = dot(scene, vec3(0.299,0.587,0.114));
+    vec3 hot = scene * step(u_threshold, lum);
+
+    vec3 tinted = hot * u_tint;
+    if (u_hueSpeed > 0.0){
+      tinted = hueRotate(hot, mod(u_time * u_hueSpeed, 1.0));
+    }
+
+    vec3 prevBlur = texture(u_prev, v_uv).rgb * 0.4;
+    prevBlur += texture(u_prev, v_uv + vec2(u_texel.x*u_spread, 0.0)).rgb * 0.15;
+    prevBlur += texture(u_prev, v_uv - vec2(u_texel.x*u_spread, 0.0)).rgb * 0.15;
+    prevBlur += texture(u_prev, v_uv + vec2(0.0, u_texel.y*u_spread)).rgb * 0.15;
+    prevBlur += texture(u_prev, v_uv - vec2(0.0, u_texel.y*u_spread)).rgb * 0.15;
+
+    vec3 trail = max(tinted, prevBlur * u_decay);
+    outColor = vec4(clamp(trail, 0.0, 1.0), 1.0);
+  }`;
+
+  // Pass 3: bloom + trail composite -> screen
+  const FS_PASS3 = `#version 300 es
+  precision highp float;
+  in vec2 v_uv;
+  uniform sampler2D u_accum;
+  uniform sampler2D u_comet;
+  uniform sampler2D u_burn;
+  uniform vec2 u_texel;
+  uniform bool u_bloomOn; uniform float u_bloomThreshold; uniform float u_bloomIntensity;
+  uniform bool u_cometOn;
+  uniform bool u_burnOn;
+  out vec4 outColor;
+
+  vec3 sampleBright(vec2 uv, float thresh){
+    vec3 c = texture(u_accum, clamp(uv,0.0,1.0)).rgb;
+    float l = dot(c, vec3(0.299,0.587,0.114));
+    return c * step(thresh, l);
+  }
+
+  void main(){
+    vec3 base = texture(u_accum, v_uv).rgb;
+    vec3 result = base;
+
+    if (u_bloomOn){
+      vec3 sum = vec3(0.0);
+      float total = 0.0;
+      for (int x=-2;x<=2;x++){
+        for (int y=-2;y<=2;y++){
+          vec2 off = vec2(float(x),float(y)) * u_texel * 2.4;
+          sum += sampleBright(v_uv+off, u_bloomThreshold);
+          total += 1.0;
+        }
+      }
+      vec3 bloom = sum / total;
+      result += bloom * u_bloomIntensity * 1.6;
+    }
+
+    if (u_cometOn){
+      result += texture(u_comet, v_uv).rgb;
+    }
+    if (u_burnOn){
+      result += texture(u_burn, v_uv).rgb;
+    }
+
+    outColor = vec4(clamp(result, 0.0, 1.0), 1.0);
+  }`;
+
+  const progPass1 = link(VS, FS_PASS1);
+  const progPass2 = link(VS, FS_PASS2);
+  const progTrail = link(VS, FS_TRAIL);
+  const progPass3 = link(VS, FS_PASS3);
+
+  const quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  function bindQuad(prog){
+    const loc = gl.getAttribLocation(prog, 'a_pos');
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  function makeFBO(w, h){
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { fbo, tex, w, h };
+  }
+  function clearFBO(f){
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f.fbo);
+    gl.viewport(0,0,f.w,f.h);
+    gl.clearColor(0,0,0,1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  const videoTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, videoTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  let sceneFBO, accumA, accumB, current, previous;
+  let cometA, cometB, cometCurrent, cometPrevious;
+  let burnA, burnB, burnCurrent, burnPrevious;
+  let renderW = 0, renderH = 0;
+  const MAX_DIM = 1024;
+
+  function initGLSizing(){
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return;
+    const scale = Math.min(1, MAX_DIM / Math.max(vw, vh));
+    renderW = Math.round(vw * scale);
+    renderH = Math.round(vh * scale);
+    canvas.width = renderW; canvas.height = renderH;
+
+    sceneFBO = makeFBO(renderW, renderH);
+    accumA = makeFBO(renderW, renderH);
+    accumB = makeFBO(renderW, renderH);
+    clearFBO(accumA); clearFBO(accumB);
+    current = accumA; previous = accumB;
+
+    cometA = makeFBO(renderW, renderH);
+    cometB = makeFBO(renderW, renderH);
+    clearFBO(cometA); clearFBO(cometB);
+    cometCurrent = cometA; cometPrevious = cometB;
+
+    burnA = makeFBO(renderW, renderH);
+    burnB = makeFBO(renderW, renderH);
+    clearFBO(burnA); clearFBO(burnB);
+    burnCurrent = burnA; burnPrevious = burnB;
+
+    statRes.textContent = renderW + '×' + renderH;
+  }
+  video.addEventListener('loadeddata', () => { if (ready) initGLSizing(); });
+
+  function uniformsFor(prog, names){
+    const loc = {};
+    names.forEach(n => loc[n] = gl.getUniformLocation(prog, n));
+    return loc;
+  }
+  const U1 = uniformsFor(progPass1, [
+    'u_tex','u_time','u_resolution',
+    'u_filmOn','u_grainAmount','u_weaveAmount',
+    'u_kaleidoOn','u_kaleidoSegments','u_kaleidoRotate',
+    'u_mosaicOn','u_mosaicBlock',
+    'u_caOn','u_caAmount',
+    'u_glitchOn','u_glitchAmount','u_glitchSeed',
+    'u_retroOn','u_scanlineAmount','u_noiseAmount','u_bleedAmount',
+    'u_dustOn','u_dustDensity','u_dustFlicker',
+    'u_leakOn','u_leakIntensity','u_leakSpeed',
+    'u_edgeOn','u_edgeThreshold','u_edgeIntensity',
+    'u_hatchOn','u_hatchDensity','u_hatchContrast',
+    'u_posterizeOn','u_posterizeLevels','u_solarizeAmount',
+    'u_ditherOn','u_ditherBias'
+  ]);
+  const U2 = uniformsFor(progPass2, [
+    'u_scene','u_prev','u_time',
+    'u_fluidOn','u_fluidAmount','u_fluidSpeed',
+    'u_persistOn','u_persistAmount',
+    'u_moshOn','u_moshAmount','u_moshDrag','u_moshSeed',
+    'u_drosteOn','u_drosteZoom','u_drosteRotate','u_drosteMix',
+    'u_slitOn','u_slitAmount','u_slitMix'
+  ]);
+  const UT = uniformsFor(progTrail, ['u_scene','u_prev','u_texel','u_time','u_threshold','u_decay','u_spread','u_hueSpeed','u_tint']);
+  const U3 = uniformsFor(progPass3, ['u_accum','u_comet','u_burn','u_texel','u_bloomOn','u_bloomThreshold','u_bloomIntensity','u_cometOn','u_burnOn']);
+
+  const startTime = performance.now();
+  let lastFrameTime = performance.now();
+  let fpsSmooth = 0;
+  let lastStrobeUpdate = 0;
+  const statFps = document.getElementById('statFps');
+
+  function renderTrailPass(fbo, sceneTex, prevTex, threshold, decay, spread, hueSpeed, tint, t){
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.fbo);
+    gl.viewport(0,0,renderW,renderH);
+    gl.useProgram(progTrail);
+    bindQuad(progTrail);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+    gl.uniform1i(UT.u_scene, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, prevTex);
+    gl.uniform1i(UT.u_prev, 1);
+    gl.uniform2f(UT.u_texel, 1/renderW, 1/renderH);
+    gl.uniform1f(UT.u_time, t);
+    gl.uniform1f(UT.u_threshold, threshold);
+    gl.uniform1f(UT.u_decay, decay);
+    gl.uniform1f(UT.u_spread, spread);
+    gl.uniform1f(UT.u_hueSpeed, hueSpeed);
+    gl.uniform3f(UT.u_tint, tint[0], tint[1], tint[2]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function render(){
+    requestAnimationFrame(render);
+    if (!ready || !renderW || video.readyState < 2) return;
+
+    const now = performance.now();
+
+    if (fxByKey.strobe.on){
+      const interval = 1000 / Math.max(state.strobeFps, 1);
+      if (now - lastStrobeUpdate < interval) return;
+      lastStrobeUpdate = now;
+    }
+
+    const dt = now - lastFrameTime;
+    lastFrameTime = now;
+    const fps = 1000 / Math.max(dt, 1);
+    fpsSmooth = fpsSmooth ? fpsSmooth * 0.9 + fps * 0.1 : fps;
+    statFps.textContent = Math.round(fpsSmooth);
+
+    const t = (now - startTime) / 1000;
+
+    // Beat-reactive envelope
+    let beatMult = 1;
+    if (fxByKey.beat.on && analyser){
+      analyser.getByteFrequencyData(freqData);
+      const bassBins = 8;
+      let sum = 0;
+      for (let i=0;i<bassBins;i++) sum += freqData[i];
+      const bass = sum / (bassBins*255);
+      beatPulse = bass > beatPulse ? bass : beatPulse * 0.90;
+      beatMult = 1 + beatPulse * state.beatSensitivity * 1.5;
+      if (beatMeterFill) beatMeterFill.style.width = Math.min(100, beatPulse*100) + '%';
+    } else if (beatMeterFill){
+      beatMeterFill.style.width = '0%';
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+
+    // ---- Pass 1: source fx -> sceneFBO
+    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO.fbo);
+    gl.viewport(0,0,renderW,renderH);
+    gl.useProgram(progPass1);
+    bindQuad(progPass1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.uniform1i(U1.u_tex, 0);
+    gl.uniform1f(U1.u_time, t);
+    gl.uniform2f(U1.u_resolution, renderW, renderH);
+    gl.uniform1i(U1.u_filmOn, fxByKey.film.on ? 1:0);
+    gl.uniform1f(U1.u_grainAmount, state.grainAmount);
+    gl.uniform1f(U1.u_weaveAmount, state.weaveAmount);
+    gl.uniform1i(U1.u_kaleidoOn, fxByKey.kaleido.on ? 1:0);
+    gl.uniform1f(U1.u_kaleidoSegments, state.kaleidoSegments);
+    gl.uniform1f(U1.u_kaleidoRotate, state.kaleidoRotate);
+    gl.uniform1i(U1.u_mosaicOn, fxByKey.mosaic.on ? 1:0);
+    gl.uniform1f(U1.u_mosaicBlock, state.mosaicBlock);
+    gl.uniform1i(U1.u_caOn, fxByKey.ca.on ? 1:0);
+    gl.uniform1f(U1.u_caAmount, state.caAmount);
+    gl.uniform1i(U1.u_glitchOn, fxByKey.glitch.on ? 1:0);
+    gl.uniform1f(U1.u_glitchAmount, state.glitchAmount * beatMult);
+    gl.uniform1f(U1.u_glitchSeed, state.glitchSeed);
+    gl.uniform1i(U1.u_retroOn, fxByKey.retro.on ? 1:0);
+    gl.uniform1f(U1.u_scanlineAmount, state.scanlineAmount);
+    gl.uniform1f(U1.u_noiseAmount, state.noiseAmount);
+    gl.uniform1f(U1.u_bleedAmount, state.bleedAmount);
+    gl.uniform1i(U1.u_dustOn, fxByKey.dust.on ? 1:0);
+    gl.uniform1f(U1.u_dustDensity, state.dustDensity);
+    gl.uniform1f(U1.u_dustFlicker, state.dustFlicker);
+    gl.uniform1i(U1.u_leakOn, fxByKey.leak.on ? 1:0);
+    gl.uniform1f(U1.u_leakIntensity, state.leakIntensity);
+    gl.uniform1f(U1.u_leakSpeed, state.leakSpeed);
+    gl.uniform1i(U1.u_edgeOn, fxByKey.edge.on ? 1:0);
+    gl.uniform1f(U1.u_edgeThreshold, state.edgeThreshold);
+    gl.uniform1f(U1.u_edgeIntensity, state.edgeIntensity);
+    gl.uniform1i(U1.u_hatchOn, fxByKey.hatch.on ? 1:0);
+    gl.uniform1f(U1.u_hatchDensity, state.hatchDensity);
+    gl.uniform1f(U1.u_hatchContrast, state.hatchContrast);
+    gl.uniform1i(U1.u_posterizeOn, fxByKey.posterize.on ? 1:0);
+    gl.uniform1f(U1.u_posterizeLevels, state.posterizeLevels);
+    gl.uniform1f(U1.u_solarizeAmount, state.solarizeAmount);
+    gl.uniform1i(U1.u_ditherOn, fxByKey.dither.on ? 1:0);
+    gl.uniform1f(U1.u_ditherBias, state.ditherBias);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // ---- Pass 2: feedback (persistence, fluid, datamosh, droste, slit-scan) -> current accum
+    gl.bindFramebuffer(gl.FRAMEBUFFER, current.fbo);
+    gl.viewport(0,0,renderW,renderH);
+    gl.useProgram(progPass2);
+    bindQuad(progPass2);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sceneFBO.tex);
+    gl.uniform1i(U2.u_scene, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, previous.tex);
+    gl.uniform1i(U2.u_prev, 1);
+    gl.uniform1f(U2.u_time, t);
+    gl.uniform1i(U2.u_fluidOn, fxByKey.fluid.on ? 1:0);
+    gl.uniform1f(U2.u_fluidAmount, state.fluidAmount);
+    gl.uniform1f(U2.u_fluidSpeed, state.fluidSpeed);
+    gl.uniform1i(U2.u_persistOn, fxByKey.persist.on ? 1:0);
+    gl.uniform1f(U2.u_persistAmount, state.persistAmount);
+    gl.uniform1i(U2.u_moshOn, fxByKey.mosh.on ? 1:0);
+    gl.uniform1f(U2.u_moshAmount, state.moshAmount);
+    gl.uniform1f(U2.u_moshDrag, state.moshDrag);
+    gl.uniform1f(U2.u_moshSeed, state.moshSeed);
+    gl.uniform1i(U2.u_drosteOn, fxByKey.droste.on ? 1:0);
+    gl.uniform1f(U2.u_drosteZoom, state.drosteZoom);
+    gl.uniform1f(U2.u_drosteRotate, state.drosteRotate);
+    gl.uniform1f(U2.u_drosteMix, state.drosteMix);
+    gl.uniform1i(U2.u_slitOn, fxByKey.slit.on ? 1:0);
+    gl.uniform1f(U2.u_slitAmount, state.slitAmount);
+    gl.uniform1f(U2.u_slitMix, state.slitMix);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // ---- Pass 2b: Comet Trailing (multi-colored luminance trail)
+    renderTrailPass(cometCurrent, sceneFBO.tex, cometPrevious.tex,
+      state.cometThreshold, state.cometDecay, state.cometSpread, state.cometHue, [1,1,1], t);
+
+    // ---- Pass 2c: Tube Camera Burn-In (fixed neon pink/red streak)
+    renderTrailPass(burnCurrent, sceneFBO.tex, burnPrevious.tex,
+      state.burnThreshold, state.burnDecay, state.burnSpread, 0.0, [1.0, 0.15, 0.55], t);
+
+    // ---- Pass 3: bloom + trails + composite -> canvas
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0,0,renderW,renderH);
+    gl.useProgram(progPass3);
+    bindQuad(progPass3);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, current.tex);
+    gl.uniform1i(U3.u_accum, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, cometCurrent.tex);
+    gl.uniform1i(U3.u_comet, 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, burnCurrent.tex);
+    gl.uniform1i(U3.u_burn, 2);
+    gl.uniform2f(U3.u_texel, 1/renderW, 1/renderH);
+    gl.uniform1i(U3.u_bloomOn, fxByKey.bloom.on ? 1:0);
+    gl.uniform1f(U3.u_bloomThreshold, state.bloomThreshold);
+    gl.uniform1f(U3.u_bloomIntensity, state.bloomIntensity * beatMult);
+    gl.uniform1i(U3.u_cometOn, fxByKey.comet.on ? 1:0);
+    gl.uniform1i(U3.u_burnOn, fxByKey.burnin.on ? 1:0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // swap ping-pong buffers
+    let tmp = current; current = previous; previous = tmp;
+    tmp = cometCurrent; cometCurrent = cometPrevious; cometPrevious = tmp;
+    tmp = burnCurrent; burnCurrent = burnPrevious; burnPrevious = tmp;
+  }
+  requestAnimationFrame(render);
+
+  /* =========================================================
+     Snapshot
+  ========================================================= */
+  btnSnapshot.addEventListener('click', () => {
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'signal-frame-' + Date.now() + '.png';
+      a.click();
+    }, 'image/png');
+  });
+
+  /* =========================================================
+     Recording / Export
+  ========================================================= */
+  let mediaRecorder = null;
+  let chunks = [];
+  let recording = false;
+  let recStart = 0;
+  let recInterval = null;
+  const tally = document.getElementById('tally');
+  const tallyBrand = document.getElementById('tallyBrandDot');
+  const recTimer = document.getElementById('recTimer');
+  const dlSlot = document.getElementById('dlSlot');
+
+  function pickMime(){
+    const opts = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+    for (const o of opts){ if (MediaRecorder.isTypeSupported(o)) return o; }
+    return '';
+  }
+
+  btnRecord.addEventListener('click', () => {
+    if (!recording) startRecording(); else stopRecording();
+  });
+
+  function startRecording(){
+    if (!ready) return;
+    const canvasStream = canvas.captureStream(30);
+    let audioTracks = [];
+    try{
+      if (sourceType === 'camera' && camStream) audioTracks = camStream.getAudioTracks();
+      else if (sourceType === 'file' && video.captureStream) audioTracks = video.captureStream().getAudioTracks();
+    }catch(e){ /* audio capture unavailable, continue video-only */ }
+
+    const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+    const mime = pickMime();
+    mediaRecorder = new MediaRecorder(combined, mime ? { mimeType: mime } : undefined);
+    chunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      dlSlot.innerHTML = '<a class="dl-link" href="' + url + '" download="signal-export-' + Date.now() + '.webm">⬇ Download recording (' + (blob.size/1048576).toFixed(1) + ' MB)</a>';
+    };
+    mediaRecorder.start();
+    recording = true;
+    recStart = performance.now();
+    btnRecord.textContent = 'Stop';
+    btnRecord.classList.remove('primary');
+    btnRecord.classList.add('danger');
+    tally.classList.add('live');
+    tallyBrand.style.background = 'var(--danger)';
+    dlSlot.innerHTML = '';
+    recInterval = setInterval(() => {
+      const s = Math.floor((performance.now()-recStart)/1000);
+      recTimer.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+    }, 500);
+  }
+
+  function stopRecording(){
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    recording = false;
+    btnRecord.textContent = 'Record';
+    btnRecord.classList.add('primary');
+    btnRecord.classList.remove('danger');
+    tally.classList.remove('live');
+    tallyBrand.style.background = 'var(--accent)';
+    clearInterval(recInterval);
+  }
+
+})();
+</script>
+</body>
+</html>
